@@ -1,0 +1,224 @@
+name: FlowOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, release/**]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/flowops
+  JAVA_VERSION: "17"
+
+jobs:
+  # ── 1. BUILD & TEST ──────────────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: flowops_test
+          POSTGRES_USER: flowops
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Run tests
+        run: mvn -B test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/flowops_test
+          SPRING_DATASOURCE_USERNAME: flowops
+          SPRING_DATASOURCE_PASSWORD: test_pass
+
+      - name: Generate test report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: JUnit Test Results
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+
+      - name: Code coverage (JaCoCo)
+        run: mvn -B jacoco:report
+        continue-on-error: true
+
+      - name: SonarQube scan
+        if: github.event_name != 'pull_request'
+        run: mvn -B sonar:sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # ── 2. SECURITY SCAN ────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: flowops
+          path: .
+          format: HTML
+          out: reports
+
+      - name: Upload OWASP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-report
+          path: reports/
+
+      - name: Trivy image vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: 1   # fail pipeline on critical CVEs
+
+  # ── 3. BUILD & PUSH DOCKER IMAGE ────────────────────────────────────────────
+  docker-build-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-scan]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK for WAR build
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Build WAR (skip tests — already ran)
+        run: mvn -B package -DskipTests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── 4. DEPLOY TO STAGING ─────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    environment:
+      name: staging
+      url: https://flowops-staging.telecom-internal.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig (staging cluster)
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image tag in deployment
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          kubectl set image deployment/flowops flowops=$IMAGE \
+            -n flowops-staging --record
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/flowops -n flowops-staging --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          URL="https://flowops-staging.telecom-internal.com"
+          curl -f "$URL/actuator/health" || exit 1
+          curl -f "$URL/api/v1/cases/health" || exit 1
+          echo "Smoke tests passed"
+
+  # ── 5. DEPLOY TO PRODUCTION ──────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment:
+      name: production         # requires manual approval in GitHub Environments
+      url: https://flowops.telecom-internal.com
+    if: startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig (prod cluster)
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > $HOME/.kube/config
+
+      - name: Update image in prod
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7)"
+          kubectl set image deployment/flowops flowops=$IMAGE \
+            -n flowops --record
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/flowops -n flowops --timeout=10m
+
+      - name: Notify Slack on deploy
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: "FlowOps production deploy: ${{ job.status }}"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

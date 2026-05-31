@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres-staging}:5432/flowops_staging
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 600000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    com.telecom: INFO
+    root: WARN
+
+management:
+  tracing:
+    sampling:
+      probability: 0.5

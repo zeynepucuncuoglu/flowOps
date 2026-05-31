@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: flowops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_DB
+              value: flowops_dev
+            - name: POSTGRES_USER
+              value: flowops
+            - name: POSTGRES_PASSWORD
+              value: flowops_dev_pass
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: flowops
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

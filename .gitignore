@@ -1,0 +1,54 @@
+# ── Maven ─────────────────────────────────────────────────────────────────────
+target/
+*.jar
+*.war
+*.ear
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.classpath
+*.project
+.settings/
+
+# ── Spring Boot ───────────────────────────────────────────────────────────────
+application-local.yml
+application-local.properties
+
+# ── Secrets / credentials — NEVER commit these ────────────────────────────────
+*.env
+.env
+.env.*
+secrets/
+k8s/secret-values.yaml
+*credentials*
+*password*
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker/.env
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+/tmp/
+
+# ── Heap dumps ────────────────────────────────────────────────────────────────
+*.hprof
+
+# ── Test coverage ─────────────────────────────────────────────────────────────
+/target/jacoco.exec
+/target/site/jacoco/
+
+# ── SonarQube ─────────────────────────────────────────────────────────────────
+.sonar/

@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME:flowops_prod}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000  # alert if connection held >30s
+      pool-name: FlowOps-HikariPool
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    com.telecom: INFO
+    root: WARN
+  # JSON format for ELK ingestion in production
+  config: classpath:logback-prod.xml
+
+management:
+  tracing:
+    sampling:
+      probability: 0.05  # 5% sampling in prod to reduce overhead

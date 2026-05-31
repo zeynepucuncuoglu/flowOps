@@ -1,0 +1,137 @@
+groups:
+
+  # ── Application SLA & Workflow Alerts ───────────────────────────────────────
+  - name: flowops.workflow
+    rules:
+
+      - alert: WorkflowTransitionErrorRateHigh
+        expr: |
+          rate(workflow_transitions_rejected_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          team: platform-ops
+        annotations:
+          summary: "High workflow transition rejection rate"
+          description: >
+            FlowOps is rejecting >5% of workflow transitions over the last 5 minutes.
+            Check rule engine logs for violations.
+          runbook: "https://wiki.telecom.com/runbooks/flowops/workflow-rejections"
+
+      - alert: WorkflowStuckCasesDetected
+        expr: |
+          cases_stuck_count > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: platform-ops
+        annotations:
+          summary: "Stuck workflow cases detected"
+          description: >
+            {{ $value }} cases have been in IN_REVIEW status for >4 hours.
+            Immediate agent intervention required.
+          runbook: "https://wiki.telecom.com/runbooks/flowops/workflow-stuck"
+
+      - alert: SlaBreachCritical
+        expr: |
+          cases_sla_breached_count > 0
+        for: 0m   # fire immediately — no tolerance for SLA breaches on CRITICAL cases
+        labels:
+          severity: critical
+          team: platform-ops
+        annotations:
+          summary: "SLA breach on {{ $value }} cases"
+          description: >
+            {{ $value }} cases have breached their SLA deadline. CRITICAL priority cases
+            have a 2-hour SLA. Investigate immediately.
+
+  # ── HTTP / API Health ────────────────────────────────────────────────────────
+  - name: flowops.http
+    rules:
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) /
+          sum(rate(http_server_requests_seconds_count[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: platform-ops
+        annotations:
+          summary: "FlowOps HTTP error rate > 1%"
+          description: "5xx error rate is {{ $value | humanizePercentage }}. Check application logs."
+          runbook: "https://wiki.telecom.com/runbooks/flowops/high-error-rate"
+
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket[5m])) by (le, uri)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency > 2s on {{ $labels.uri }}"
+          description: "95th percentile response time is {{ $value }}s."
+
+      - alert: LowThroughput
+        expr: |
+          sum(rate(http_server_requests_seconds_count[5m])) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FlowOps request throughput abnormally low"
+          description: "Less than 0.1 req/s for 10 minutes. Service may be receiving no traffic or be unreachable."
+
+  # ── JVM / Infrastructure ─────────────────────────────────────────────────────
+  - name: flowops.jvm
+    rules:
+
+      - alert: JvmHeapUsageHigh
+        expr: |
+          (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM heap usage > 85%"
+          description: "Heap is at {{ $value | humanizePercentage }}. GC pressure increasing — risk of OOM."
+
+      - alert: JvmGcPauseHigh
+        expr: |
+          rate(jvm_gc_pause_seconds_sum[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM GC pauses are high"
+          description: "GC pause time rate is {{ $value }}s/s. Application may be suffering stop-the-world pauses."
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  - name: flowops.database
+    rules:
+
+      - alert: HikariConnectionPoolExhausted
+        expr: |
+          hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB connection pool near exhaustion ({{ $value | humanizePercentage }})"
+          description: >
+            HikariCP pool is {{ $value | humanizePercentage }} utilized.
+            New requests will start timing out at 100%. Check for slow queries or connection leaks.
+          runbook: "https://wiki.telecom.com/runbooks/flowops/db-failure"
+
+      - alert: DatabaseDown
+        expr: |
+          up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is DOWN"
+          description: "FlowOps cannot reach its database. Immediate action required."
+          runbook: "https://wiki.telecom.com/runbooks/flowops/db-failure"

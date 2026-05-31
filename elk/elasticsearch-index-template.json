@@ -1,0 +1,36 @@
+{
+  "index_patterns": ["flowops-logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "flowops-logs-policy",
+      "index.lifecycle.rollover_alias": "flowops-logs"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp":    { "type": "date" },
+        "log_level":     { "type": "keyword" },
+        "application":   { "type": "keyword" },
+        "environment":   { "type": "keyword" },
+        "java_class":    { "type": "keyword" },
+        "java_thread":   { "type": "keyword" },
+        "traceId":       { "type": "keyword" },
+        "spanId":        { "type": "keyword" },
+        "userId":        { "type": "keyword" },
+        "case_number":   { "type": "keyword" },
+        "message":       { "type": "text", "analyzer": "standard" },
+        "stack_trace":   { "type": "text", "index": false },
+        "tomcat": {
+          "properties": {
+            "status":    { "type": "integer" },
+            "duration":  { "type": "integer" },
+            "bytes":     { "type": "integer" },
+            "method":    { "type": "keyword" },
+            "uri":       { "type": "keyword" }
+          }
+        }
+      }
+    }
+  }
+}

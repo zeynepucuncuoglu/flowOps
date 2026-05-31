@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowops-service
+  namespace: flowops
+  labels:
+    app: flowops
+spec:
+  selector:
+    app: flowops
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+# NodePort for local cluster testing (not used in prod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowops-nodeport
+  namespace: flowops-staging
+spec:
+  selector:
+    app: flowops
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort

@@ -1,0 +1,144 @@
+{
+  "title": "FlowOps — Operations Dashboard",
+  "uid": "flowops-main",
+  "tags": ["flowops", "telecom", "case-management"],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application='flowops'}[1m]))",
+          "legendFormat": "Requests/sec"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "p95 / p99 Response Time",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application='flowops'}[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application='flowops'}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Error Rate (%)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application='flowops',status=~'5..'}[5m])) / sum(rate(http_server_requests_seconds_count{application='flowops'}[5m])) * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "unit": "percent"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Cases by Status",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 8 },
+      "targets": [
+        { "expr": "cases_open_count",         "legendFormat": "OPEN" },
+        { "expr": "cases_sla_breached_count", "legendFormat": "SLA BREACHED" },
+        { "expr": "cases_stuck_count",        "legendFormat": "STUCK" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Workflow Transition Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 6, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(workflow_transitions_total{application='flowops'}[5m])) by (from, to)",
+          "legendFormat": "{{from}} → {{to}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Workflow Processing Time (p95)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 6, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(workflow_transition_duration_seconds_bucket[5m])) by (le, from, to))",
+          "legendFormat": "{{from}} → {{to}} p95"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 7,
+      "title": "JVM Heap Usage",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{area='heap',application='flowops'} / jvm_memory_max_bytes{area='heap',application='flowops'} * 100",
+          "legendFormat": "Heap Used %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 85}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "DB Connection Pool Utilization",
+      "type": "gauge",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{application='flowops'} / hikaricp_connections_max{application='flowops'} * 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 90}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

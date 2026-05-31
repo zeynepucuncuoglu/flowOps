@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flowops-config
+  namespace: flowops
+data:
+  SPRING_PROFILES_ACTIVE: "dev"
+  DB_HOST: "postgres-service"
+  DB_NAME: "flowops_dev"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector-service:4318/v1/traces"
+  TRACING_SAMPLE_RATE: "0.05"
+  # Tomcat JVM tuning passed as JAVA_OPTS in deployment
+  JAVA_OPTS: >-
+    -Xms512m
+    -Xmx1g
+    -XX:+UseG1GC
+    -XX:MaxGCPauseMillis=200
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:HeapDumpPath=/tmp/heapdump.hprof
+    -Dfile.encoding=UTF-8

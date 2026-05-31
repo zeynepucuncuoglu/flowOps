@@ -1,0 +1,166 @@
+version: "3.9"
+
+# ── FlowOps full local stack ──────────────────────────────────────────────────
+# Starts: app + postgres + prometheus + grafana + elasticsearch + kibana + jaeger
+# Usage:  docker-compose up -d
+# Logs:   docker-compose logs -f flowops
+
+services:
+
+  # ── Application ─────────────────────────────────────────────────────────────
+  flowops:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: flowops:local
+    container_name: flowops-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_USER: flowops
+      DB_PASSWORD: flowops_dev_pass
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flowops-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 150s
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: flowops-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: flowops_dev
+      POSTGRES_USER: flowops
+      POSTGRES_PASSWORD: flowops_dev_pass
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - flowops-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: flowops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    networks:
+      - flowops-net
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: flowops-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - flowops-net
+
+  # ── Elasticsearch ────────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: flowops-elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - flowops-net
+
+  # ── Logstash ─────────────────────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: flowops-logstash
+    ports:
+      - "5044:5044"   # Beats input
+      - "5001:5000"   # TCP input (app log forwarder)
+    volumes:
+      - ../elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    depends_on:
+      - elasticsearch
+    networks:
+      - flowops-net
+
+  # ── Kibana ───────────────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: flowops-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    depends_on:
+      - elasticsearch
+    networks:
+      - flowops-net
+
+  # ── Jaeger (distributed tracing) ─────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: flowops-jaeger
+    ports:
+      - "16686:16686"   # UI
+      - "14268:14268"   # HTTP thrift
+    networks:
+      - flowops-net
+
+  # ── OpenTelemetry Collector ──────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: flowops-otel-collector
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+    volumes:
+      - ../monitoring/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - jaeger
+    networks:
+      - flowops-net
+
+networks:
+  flowops-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+  es-data:

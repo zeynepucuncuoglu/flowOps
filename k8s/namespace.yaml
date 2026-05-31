@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flowops
+  labels:
+    app: flowops
+    team: platform-ops
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flowops-staging
+  labels:
+    app: flowops
+    environment: staging

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tomcat 10.1 production-tuned server.xml -->
+<Server port="8005" shutdown="SHUTDOWN">
+    <Listener className="org.apache.catalina.startup.VersionLoggerListener"/>
+    <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on"/>
+    <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener"/>
+    <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener"/>
+    <Listener className="org.apache.catalina.core.ThreadLocalLeakPreventionListener"/>
+
+    <Service name="Catalina">
+        <!--
+          NIO2 connector.
+          maxThreads=200  — handles concurrent requests
+          acceptCount=100 — queue before refusing connections
+          connectionTimeout=20000 — drop idle connections after 20s
+        -->
+        <Connector port="8080" protocol="org.apache.coyote.http11.Http11Nio2Protocol"
+                   maxThreads="200"
+                   minSpareThreads="10"
+                   acceptCount="100"
+                   connectionTimeout="20000"
+                   redirectPort="8443"
+                   compression="on"
+                   compressionMinSize="2048"
+                   compressibleMimeType="text/html,application/json,application/javascript"/>
+
+        <Engine name="Catalina" defaultHost="localhost">
+            <Host name="localhost" appBase="webapps"
+                  unpackWARs="true" autoDeploy="false">
+                <!-- AccessLog in JSON for ELK ingestion -->
+                <Valve className="org.apache.catalina.valves.AccessLogValve"
+                       directory="logs"
+                       prefix="access_log"
+                       suffix=".json"
+                       pattern="{&quot;time&quot;:&quot;%t&quot;,&quot;remote&quot;:&quot;%h&quot;,&quot;method&quot;:&quot;%m&quot;,&quot;uri&quot;:&quot;%U&quot;,&quot;status&quot;:%s,&quot;bytes&quot;:%b,&quot;duration&quot;:%D}"/>
+            </Host>
+        </Engine>
+    </Service>
+</Server>

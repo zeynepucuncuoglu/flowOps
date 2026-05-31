@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flowops-ingress
+  namespace: flowops
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    # Rate limiting — 100 req/s per IP, protects against abuse
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - flowops.telecom-internal.com
+      secretName: flowops-tls
+  rules:
+    - host: flowops.telecom-internal.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: flowops-service
+                port:
+                  number: 80
+          - path: /actuator/health
+            pathType: Exact
+            backend:
+              service:
+                name: flowops-service
+                port:
+                  number: 80

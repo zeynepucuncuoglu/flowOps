@@ -1,0 +1,29 @@
+spring:
+  security:
+    user:
+      name: admin
+      password: admin123
+      roles: ADMIN
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/flowops_dev
+    username: flowops
+    password: flowops_dev_pass
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 5000
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate  # Flyway manages schema; Hibernate only validates
+
+logging:
+  level:
+    com.telecom: DEBUG
+    org.hibernate.SQL: DEBUG
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0  # Trace everything in dev

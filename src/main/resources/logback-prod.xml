@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="LOGSTASH" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Custom fields added to every JSON log line — used by Kibana filters -->
+            <customFields>{"application":"flowops","team":"platform-ops"}</customFields>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>userId</includeMdcKeyName>
+            <includeMdcKeyName>caseNumber</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="LOGSTASH"/>
+    </root>
+
+    <logger name="com.telecom" level="INFO"/>
+    <!-- Suppress noisy hibernate stats in prod -->
+    <logger name="org.hibernate.stat" level="WARN"/>
+</configuration>
