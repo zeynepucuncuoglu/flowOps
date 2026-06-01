@@ -22,4 +22,5 @@ VALUES
      'APPROVED', 'MEDIUM', 'PORT_REQUEST',
      'Number portability request to competitor',
      'Customer requests MNP (Mobile Number Portability). All docs verified.',
-     NOW() + INTERVAL '24 hours');
+     NOW() + INTERVAL '24 hours')
+ON CONFLICT (case_number) DO NOTHING;
