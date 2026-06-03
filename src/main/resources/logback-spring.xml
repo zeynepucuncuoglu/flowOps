@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Console appender for all profiles -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"application":"flowops","team":"platform-ops"}</customFields>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>caseNumber</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <!-- TCP appender → Logstash (active in dev and prod profiles) -->
+    <appender name="LOGSTASH_TCP" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>${LOGSTASH_HOST:-flowops-logstash}:${LOGSTASH_PORT:-5000}</destination>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"application":"flowops","team":"platform-ops"}</customFields>
+            <includeMdcKeyName>traceId</includeMdcKeyName>
+            <includeMdcKeyName>spanId</includeMdcKeyName>
+            <includeMdcKeyName>caseNumber</includeMdcKeyName>
+        </encoder>
+        <reconnectionDelay>10 seconds</reconnectionDelay>
+        <keepAliveDuration>5 minutes</keepAliveDuration>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOGSTASH_TCP"/>
+    </root>
+
+    <logger name="com.telecom" level="INFO"/>
+    <logger name="org.hibernate.stat" level="WARN"/>
+    <logger name="org.hibernate.SQL" level="WARN"/>
+
+</configuration>
