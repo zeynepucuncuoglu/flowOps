@@ -16,21 +16,6 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: flowops_test
-          POSTGRES_USER: flowops
-          POSTGRES_PASSWORD: test_pass
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,12 +27,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Build (skip tests — no test files yet)
+      - name: Build (skip tests)
         run: mvn -B package -DskipTests
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/flowops_test
-          SPRING_DATASOURCE_USERNAME: flowops
-          SPRING_DATASOURCE_PASSWORD: test_pass
 
       - name: Upload WAR artifact
         uses: actions/upload-artifact@v4
