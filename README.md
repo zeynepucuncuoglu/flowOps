@@ -1,7 +1,7 @@
 # FlowOps — PEGA-Style Customer Case Management
 
 Enterprise-grade workflow and case management system simulating real telecom operations.
-Built with Java 17 + Spring Boot 3 + PostgreSQL, deployed on Apache Tomcat + Kubernetes.
+Built with Java 21 + Spring Boot 3.3 + PostgreSQL, deployed on Apache Tomcat 10.1 + Kubernetes.
 
 ---
 
@@ -103,10 +103,10 @@ flowOps/
 
 | Layer | Technology |
 |---|---|
-| Language | Java 17 |
-| Framework | Spring Boot 3.2 |
+| Language | Java 21 |
+| Framework | Spring Boot 3.3 |
 | Runtime | Apache Tomcat 10.1 (WAR deployment) |
-| Database | PostgreSQL 16 + Flyway migrations |
+| Database | PostgreSQL 15 + Flyway migrations |
 | Container | Docker (multi-stage build) |
 | Orchestration | Kubernetes + HPA |
 | CI/CD | GitHub Actions |
@@ -114,3 +114,33 @@ flowOps/
 | Logging | ELK (Elasticsearch + Logstash + Kibana) |
 | Tracing | Jaeger + OpenTelemetry |
 | Alerting | Prometheus Alertmanager + PagerDuty/Slack |
+
+---
+
+## PEGA Concept Mapping
+
+This project was designed to mirror PEGA Platform's core concepts using standard Java/Spring technologies.
+
+| PEGA Concept | FlowOps Implementation | Technology |
+|---|---|---|
+| **Case** | `CustomerCase` entity | JPA / PostgreSQL |
+| **Stage** | `CaseStatus` enum (OPEN → IN_REVIEW → APPROVED/REJECTED → CLOSED) | Java enum |
+| **Flow Action** | `WorkflowRule` interface + rule chain | Chain of Responsibility |
+| **Skill-Based Routing** | `RoutingService` — matches case type to agent skill + availability | Spring Service + JPQL |
+| **Decision Table** | `case_routing_rules` DB table — no code change needed to add new case types | Flyway migration |
+| **SLA Service** | Scheduled watchdog — flags breached and stuck cases every 5 min | Spring `@Scheduled` |
+| **Pulse / Audit Trail** | `workflow_transitions` table — every state change recorded with actor + reason | JPA |
+| **Operator Portal** | REST API (`POST /cases`, `POST /transitions`, `GET /cases?priority=CRITICAL`) | Spring MVC |
+| **Workload Balancing** | Round-robin via `lastAssignedAt ASC` ordering | JPQL |
+| **Urgency Override** | `CRITICAL` priority ignores agent capacity — SLA takes precedence | RoutingService |
+| **Reporting** | Business metrics exposed to Prometheus, visualized in Grafana | Micrometer |
+| **Log Management** | Structured JSON logs → Logstash → Elasticsearch → Kibana | ELK Stack |
+| **Distributed Tracing** | Trace ID propagated across all services, visualized in Jaeger | OpenTelemetry |
+
+### Key Design Decisions That Mirror PEGA
+
+**Routing rules as data, not code** — Adding a new case type requires only an INSERT into `case_routing_rules`. No deployment needed. This mirrors how PEGA business analysts configure routing in Decision Tables without touching code.
+
+**Rule engine over if-else** — The `WorkflowEngine` evaluates rules in priority order and stops on the first violation. This is how PEGA Flow Actions work: each action has pre-conditions that are evaluated sequentially.
+
+**CRITICAL priority overrides capacity** — When SLA is 2 hours, the system routes to the best available expert regardless of their current workload. This reflects how PEGA handles urgent cases with SLA escalation policies.
